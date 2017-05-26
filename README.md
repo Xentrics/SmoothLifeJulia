@@ -1,4 +1,4 @@
-# SmoothLifeJulia
+# SmoothLife Julia
 _SmoothLife implementation in Julia_
 
 Julia is a high level programming language which uses Phython and C as base. It can also use other C-based languages like C++ if necessary.
