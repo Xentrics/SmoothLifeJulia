@@ -1,0 +1,21 @@
+# reference
+
+
+# slow, stable set 
+const b1 = 0.26
+const b2 = 0.3
+const d1 = 0.21
+const d2 = 0.35
+
+# moving stuff, no stable glider
+2 0   12.0  3.0  12.0  0.100   0.247  0.291  0.276  0.440   4 4 4   0.078  0.147    // glider in mode 0, 1 and 2? almost!
+const b1 = 0.24
+const b2 = 0.291
+const d1 = 0.276
+const d2 = 0.440
+
+# other reference set
+const b1 = 0.257
+const b2 = 0.336
+const d1 = 0.365
+const d2 = 0.549

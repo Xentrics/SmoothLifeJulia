@@ -50,11 +50,7 @@ The sum of matrix is normalized to be equal to 1.0.
 * `AA`: Thickness of antialiasing. 0.0 means no antialiasing.
 """
 function makeOuterMask(r_out, r_in, AA=0.0; verbose=false, subtract=false)::Array{Float64,2}
-    if subtract
-        mask = makeOuterMasksubtracted(r_out, r_in, AA)
-    else
-        mask = makeMask(r_out, r_in, AA)
-    end
+    mask = subtract ? makeOuterMasksubtracted(r_out, r_in, AA) : makeMask(r_out, r_in, AA)
 
     if verbose; plt[:figure](); plt[:axis]("off"); plt[:imshow](mask) end
     return mask
@@ -102,7 +98,7 @@ function splat!(grid::Array{Float64,2}, height, width, r_out; round=true)
             # make a splat around [ix, iy]
             ix = x+dx
             iy = y+dy
-            if 1<=ix<=width && 1<=iy<=height && (!round || round && sqrt(dx^2+dy^2) <= r_out)
+            if 1<=ix<=width && 1<=iy<=height && (!round || round && sqrt(dx^2+dy^2) <= r_out && sqrt(dx^2+dy^2) > 7.0)
                 grid[ix,iy] = c
             end
         end
@@ -121,11 +117,12 @@ Return a grid initiated with splats.
 """
 function initGrid(height, width, r_out)::Array{Float64,2}
 	grid = zeros(Float64, height,width)
-	for t in 0:((width/r_out)*(height/r_out))
-		splat!(grid, height, width, r_out)
+	for t in 0:((width/(r_out/10))*(height/(r_out/10)))
+		splat!(grid, height, width, ceil(Int64, r_out*rand()))
 	end
     return grid
 end
+
 
 #Hack: in the paper, λ is different for n and m! The smoothness allows us to use smaller masks for similar precision
 function σ1(x::Float64, a::Float64)
@@ -152,10 +149,10 @@ The function is a mapping of [0,1) x [0,1) ⟶ [0,1).
 """
 function s(n::Float64, m::Float64)
     #Note: birth interval [b1,b2] and death interval [d1, d2]. Values based on original paper
-    const b1 = 0.278
-    const b2 = 0.365
-    const d1 = 0.267
-    const d2 = 0.445
+    const b1 = 0.275
+    const b2 = 0.275
+    const d1 = 0.331
+    const d2 = 0.550
     return σ2(n, σm(b1,d1,m), σm(b2,d2,m))
 end
 
@@ -193,24 +190,64 @@ function snm(n, m)
     const b1 = 0.278
     const b2 = 0.365
     const d1 = 0.267
-    const d2 = 0.445
+    const d2 = 0.5
     const alphan = 0.028
     const alpham = 0.147
     return sigmoid_ab(n, sigmoid_mix(b1, d1, m, alpham), sigmoid_mix(b2, d2, m, alpham), alphan, alphan)
 end
 
 
-function getGrid(width=100, height=100, random=true; r_out=21)::Tuple{Array{Float64,2}, Array{Float64,2}}
-    if random
-        #return (r_outnd(width, height), Array{Float64,2}(width, height))
+
+function sigma1(x::Float64, a::Float64, alpha::Float64)::Float64
+    return 1.0 / ( 1.0 + exp(-(x-a)*4.0/alpha));
+end
+
+"""
+Corrected rules according to ref. implementation
+"""
+function sigma2(x::Float64, a::Float64, b::Float64)::Float64
+    const αn = 0.028
+    return sigma1(x,a,αn) * ( 1.0 - sigma1(x,b,αn));
+end
+
+function sigmam(x::Float64, y::Float64, m::Float64)::Float64
+    const αm = 0.147
+    return x * ( 1.0 - sigma1(m,0.5,αm)) + y*sigma1(m, 0.5, αm);
+end
+
+"""
+Return the new filling based of the area of the `outer` and the `inner` ring.
+"""
+function discrete_step(outer::Float64, inner::Float64)::Float64
+    const b1 = 0.24
+	const b2 = 0.291
+	const d1 = 0.276
+	const d2 = 0.440
+
+    return sigmam(sigma2(outer,b1,b2), sigma2(outer,d1,d2),inner);
+end
+
+function discrete_as_euler(outer::Float64, inner::Float64)::Float64
+    return 2.0 * discrete_step(outer, inner) - 1.0;
+end
+
+function next_step_as_euler(f::Float64, outer::Float64, inner::Float64, dt::Float64)::Float64
+    return f + dt * discrete_as_euler(outer,inner);
+end
+
+"""
+Create two grids. Either empty or randomized. Randomized version uses splats.
+Return a tuple. The first entry is a new grid, the second is an uninitialized, 2d array of the same size (for swapping)
+
+Splats will be of size `r_out`.
+"""
+function createGrid(width=100, height=100, splat=true; r_out=21)::Tuple{Array{Float64,2}, Array{Float64,2}}
+    if splat
         return (initGrid(height, width, r_out), Array{Float64, 2}(width, height))
     else
         return (zeros(Float64, width, height), Array{Float64,2}(width, height))
     end
 end
-
-# initiation
-
 
 """
 Start the smoothlife simulation. All results are estimates. Smaller time steps and greater masks improve resolution
@@ -227,30 +264,33 @@ but increase computation time also.
 * `showOnConsole`: if true, output grid in a python frame. Updates the same frame (video functionality)
 * `verbose`: additional information output (e.g. masks)
 """
-function simulate(;runs = 10, grid_width = 512, grid_height = 512, r_in = 9, r_out = 3*r_in, dt = 0.05, sleepTime=0.1, showOnConsole=true, verbose=false)
+function simulate(;runs = 10, grid_width = 512, grid_height = 512, r_in = 3, r_out = 3*r_in, dt = 0.1, sleepTime=0.0, showOnConsole=true, verbose=false)
 
-    (curGrid, newGrid) = getGrid(grid_width, grid_height; r_out=r_out)
-    mask_in = makeInnerMask(r_in, 1.0; verbose=verbose)
-    mask_out = makeOuterMask(r_out, r_in, 1.0; subtract=true, verbose=verbose)
+    (curGrid, newGrid) = createGrid(grid_width, grid_height; r_out=r_out)
+    mask_in = centered(makeInnerMask(r_in, 1.0; verbose=verbose))
+    mask_out = centered(makeOuterMask(r_out, r_in, 1.0; subtract=true, verbose=verbose))
 
     plt[:axis]("off")
     im = plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
 
     for run in 1:runs
-        # step
+        # convolution -> get fillings
         convInner = imfilter_fft(curGrid, mask_in, "circular")  # HACK: fft is faster for masks greater 20x20
         convOuter = imfilter_fft(curGrid, mask_out, "circular")
-        #plt[:figure](); plt[:axis]("off"); plt[:imshow](convInner, cmap=cm.Greys_r)
-        #plt[:figure](); plt[:axis]("off"); plt[:imshow](convOuter, cmap=cm.Greys_r)
+        
+        # calc new frame
+        newGrid = zeros(Float64, grid_width, grid_height) # just for debugging.
         for x in 1:grid_width
             for y in 1:grid_height
-                newGrid[x,y] = smoothStep(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)
+                #newGrid[x,y] = max(0.0, min(1.0, smoothStep(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)))
+                newGrid[x,y] = max(0.0, min(1.0, next_step_as_euler(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)))
+		#newGrid[x,y] = max(0.0, min(1.0, discrete_step(convOuter[x,y], convInner[x,y])))
             end
         end
 
         # swap
         curGrid = newGrid
-        newGrid = zeros(Float64, grid_width, grid_height) # just for debugging.
+        #newGrid = zeros(Float64, grid_width, grid_height) 
 
         if showOnConsole
             im[:set_data](curGrid)
@@ -262,7 +302,7 @@ function simulate(;runs = 10, grid_width = 512, grid_height = 512, r_in = 9, r_o
     end
 end
 
-simulate(runs=100)
+simulate(runs=10, r_in=7)
 
 
 
