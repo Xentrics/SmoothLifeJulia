@@ -14,10 +14,11 @@ The idea has first been proposed in this paper: [Generalization of Conway's "Gam
 If you use Jupyter, real-time rendering **will not work**. Only the last frame will be shown in a frame. This is, unfortunately, an issues related to Jupyter (which I cannot bypass). 
 _If someone has a workaround, let me know!_
 
-## TODO:
+## Tasks:
+- [x] core
+- [x] Julia version 5.x
+- [x] working graphics output
 - [ ] stable universe
 - [ ] test cases
-- [x] working graphics output
-- [x] core
 - [ ] code clean-up
 - [ ] working Jupyter output?
