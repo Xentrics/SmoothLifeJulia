@@ -48,11 +48,10 @@ The sum of matrix is normalized to be equal to 1.0.
 * `r_out::Int64`: the outer radius of the ring. Must be greater than r_in.
 * `r_in::Int64`: the inner radius of the ring. Must be smaller than r_out.
 * `AA`: Thickness of antialiasing. 0.0 means no antialiasing.
-
 """
 function makeOuterMask(r_out, r_in, AA=0.0; verbose=false, subtract=false)::Array{Float64,2}
     if subtract
-        mask = makeOuterMaskSubtracted(r_out, r_in, AA)
+        mask = makeOuterMasksubtracted(r_out, r_in, AA)
     else
         mask = makeMask(r_out, r_in, AA)
     end
@@ -65,7 +64,7 @@ end
 In this version, the inner mask is subtracted. Using antialiasing, this will lead to an continuous transition from inner to outer.
 For further information, see 'makeOuterMask'.
 """
-function makeOuterMaskSubtracted(r_out, r_in, AA=0.0; verbose=false)::Array{Float64,2}
+function makeOuterMasksubtracted(r_out, r_in, AA=0.0; verbose=false)::Array{Float64,2}
     mask = makeMask(r_out, 0.0, AA; normalize=false)
     
     # make the hole of the ring
@@ -84,38 +83,48 @@ function makeOuterMaskSubtracted(r_out, r_in, AA=0.0; verbose=false)::Array{Floa
     return mask
 end
 
-function splat!(aa, ny, nx, ra; round=true)
-	x = floor(Int64, rand()*nx)+1
-	y = floor(Int64, rand()*ny)+1
+"""
+Initiate grid with a splats. Can be squared or round
+# Arguments
+* `grid`: 
+* `height`: grid height
+* `width`: grid width
+* `r_out`: outer radius of conv mask
+* `round`: if true, make round splats. Make squares otherwise
+"""
+function splat!(grid::Array{Float64,2}, height, width, r_out; round=true)
+	x = floor(Int64, rand()*width)+1
+	y = floor(Int64, rand()*height)+1
 	c = max(0.5, rand()) # val ∈ [0.5, 1.0]
 
-    for dx in -ra:ra
-        for dy in -ra:ra
+    for dx in -r_out:r_out
+        for dy in -r_out:r_out
+            # make a splat around [ix, iy]
             ix = x+dx
             iy = y+dy
-            if 1<=ix<=nx && 1<=iy<=ny && (!round || round && sqrt(dx^2+dy^2) <= ra)
-                aa[ix,iy] = c
+            if 1<=ix<=width && 1<=iy<=height && (!round || round && sqrt(dx^2+dy^2) <= r_out)
+                grid[ix,iy] = c
             end
         end
     end
     
-    return aa
+    return grid
 end
 
 """
-returns a grid initiated with splats
+Return a grid initiated with splats.
     
-#Arguments
-*`ny`: height
-*`nx`: width
-*`ra`: outer radius
+# Arguments
+* `height`: grid height
+* `width`: grid width
+* `r_out`: outer radius of conv mask
 """
-function initaa(ny, nx, ra)::Array{Float64,2}
-	aa = zeros(Float64, ny,nx)
-	for t in 0:((nx/ra)*(ny/ra))
-		splat!(aa, ny, nx, ra)
+function initGrid(height, width, r_out)::Array{Float64,2}
+	grid = zeros(Float64, height,width)
+	for t in 0:((width/r_out)*(height/r_out))
+		splat!(grid, height, width, r_out)
 	end
-    return aa
+    return grid
 end
 
 #Hack: in the paper, λ is different for n and m! The smoothness allows us to use smaller masks for similar precision
@@ -193,98 +202,78 @@ end
 
 function getGrid(width=100, height=100, random=true; r_out=21)::Tuple{Array{Float64,2}, Array{Float64,2}}
     if random
-        #return (rand(width, height), Array{Float64,2}(width, height))
-        return (initaa(height, width, r_out), Array{Float64, 2}(width, height))
+        #return (r_outnd(width, height), Array{Float64,2}(width, height))
+        return (initGrid(height, width, r_out), Array{Float64, 2}(width, height))
     else
         return (zeros(Float64, width, height), Array{Float64,2}(width, height))
     end
 end
 
 # initiation
-showOnConsole=false
-sleepTime=0.1
-runs = 1
-r_in = 9
-r_out = 3*r_in
-dt = 0.05
-grid_width = 512
-grid_height = 512
-(curGrid, newGrid) = getGrid(grid_width, grid_height; r_out=r_out)
-mask_in = makeInnerMask(r_in, 1.0; verbose=false)
-mask_out = makeOuterMask(r_out, r_in, 1.0; verbose=false, subtract=true)
 
-plt[:axis]("off")
-im = plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
-
-for run in 1:runs
-    # step
-    convInner = imfilter_fft(curGrid, mask_in, "circular")
-    convOuter = imfilter_fft(curGrid, mask_out, "circular") # fft is faster for masks greater 20x20
-    #plt[:figure](); plt[:axis]("off"); plt[:imshow](convInner, cmap=cm.Greys_r)
-    #plt[:figure](); plt[:axis]("off"); plt[:imshow](convOuter, cmap=cm.Greys_r)
-    for x in 1:grid_width
-        for y in 1:grid_height
-            newGrid[x,y] = smoothStep(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)
-        end
-    end
-
-    # swap
-    curGrid = newGrid
-    newGrid = zeros(Float64, grid_width, grid_height)
-
-    if showOnConsole
-        im[:set_data](curGrid)
-        plt[:draw]()
-        sleep(sleepTime)
-    else
-        plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
-    end
-end
 
 """
 Start the smoothlife simulation. All results are estimates. Smaller time steps and greater masks improve resolution
 but increase computation time also.
 
 #Arguments
-* `iterations` : The number of total convolutions
-* `step_dist` : How much the time passes between two calculations. The greater, the rougher the estimation.
-* `radius_inner::Int64` : Size of the inner ring. Greater radius takes more computation time, but improves precision.
-* `radius_outer::Int64` : Size of outer Ring. Greater radius takes more computation time, but improves precision. Must be greater than radius_inner. Use 3*radius_inner for best results.
+* `runs`: The number of total iterations (convolutions)
+* `grid_width`:
+* `grid_height`:
+* `r_in::Int64`: Size of the inner ring. Greater radius takes more computation time, but improves precision.
+* `r_out::Int64`: Size of outer ring. Greater radius takes more computation time, but improves precision/stability. Must be greater than radius_inner. Use 3*radius_inner for best results.
+* `dt`: delta time. How much the time passes between two calculations. The greater, the rougher the estimation.
+* `sleepTime`: Number of seconds the cpu waits after one complete convolution
+* `showOnConsole`: if true, output grid in a python frame. Updates the same frame (video functionality)
+* `verbose`: additional information output (e.g. masks)
 """
-function simulate()
-    
-end
+function simulate(;runs = 10, grid_width = 512, grid_height = 512, r_in = 9, r_out = 3*r_in, dt = 0.05, sleepTime=0.1, showOnConsole=true, verbose=false)
 
-plt[:figure](); plt[:axis]("off"); plt[:imshow](mask_out, cmap="gray")
+    (curGrid, newGrid) = getGrid(grid_width, grid_height; r_out=r_out)
+    mask_in = makeInnerMask(r_in, 1.0; verbose=verbose)
+    mask_out = makeOuterMask(r_out, r_in, 1.0; subtract=true, verbose=verbose)
 
+    plt[:axis]("off")
+    im = plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
 
-
-?makeInnerMask
-
-
-
-
-
-
-
-#=
-function makeInnerMask(r_in, AA=0.0; verbose=false)::Array{Float64,2}
-    mask = zeros(Float64, 2*r_in, 2*r_in)
-    cen = (r_in, r_in)
-
-    for x in -r_in:r_in
-        for y in -r_in:r_in
-            if sqrt(x^2 + y^2) < r_in
-                mask[x+cen[1], y+cen[2]] = 1
+    for run in 1:runs
+        # step
+        convInner = imfilter_fft(curGrid, mask_in, "circular")  # HACK: fft is faster for masks greater 20x20
+        convOuter = imfilter_fft(curGrid, mask_out, "circular")
+        #plt[:figure](); plt[:axis]("off"); plt[:imshow](convInner, cmap=cm.Greys_r)
+        #plt[:figure](); plt[:axis]("off"); plt[:imshow](convOuter, cmap=cm.Greys_r)
+        for x in 1:grid_width
+            for y in 1:grid_height
+                newGrid[x,y] = smoothStep(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)
             end
         end
+
+        # swap
+        curGrid = newGrid
+        newGrid = zeros(Float64, grid_width, grid_height) # just for debugging.
+
+        if showOnConsole
+            im[:set_data](curGrid)
+            plt[:draw]()
+            sleep(sleepTime)
+        else
+            plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+        end
     end
-    
-    # normalize sum(mask) == 1.0
-    mask /= sum(mask)
-    
-    if verbose; plt[:figure](); plt[:axis]("off"); plt[:imshow](mask) end
-    
-    return mask
 end
-=#
+
+simulate(runs=100)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
