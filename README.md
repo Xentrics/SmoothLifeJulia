@@ -16,8 +16,8 @@ _If someone has a workaround, let me know!_
 
 ## TODO:
 - [ ] stable universe
-- [ ] working Jupyter output?
-- [ ] code clean-up
 - [ ] test cases
 - [x] working graphics output
 - [x] core
+- [ ] code clean-up
+- [ ] working Jupyter output?
