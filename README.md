@@ -17,8 +17,10 @@ _If someone has a workaround, let me know!_
 ## Tasks:
 - [x] core
 - [x] Julia version 5.x
+- [x] Julia version 1.0.x
 - [x] working graphics output
+- [x] FFT convolution
 - [ ] stable universe
 - [ ] test cases
 - [ ] code clean-up
-- [ ] working Jupyter output?
+- [ ] working Jupyter output
