@@ -381,23 +381,38 @@ end
 
 
 
-function test_anim3(curGrid, nframes = 200)
+function test_anim3(curGrid; nframes = 20, save_type = "mp4")
     function showanim(filename)
         base64_video = base64encode(open(filename))
         display("text/html", """<video controls src="data:video/x-m4v;base64,$base64_video">""")
     end
 
+    # set up writer for movie / image files
+    if save_type == "mp4"
+        f_ending = ".mp4"
+        #writer = anim.FFMpegWriter(fps=15, extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p"])
+        writer = anim.FFMpegWriter(fps=15)
+    elseif save_type == "gif"
+        f_ending = ".gif"
+        #writer = "imagemagick"
+        writer = anim.ImageMagickWriter()
+    else
+        throw(error("Wrong save type!"))
+    end
+
+
+
     fig = figure(figsize=(4,4))
     axis("off")
 
     function make_frame(i)
-        curGrid = min.(1, curGrid .* i)
+        #curGrid = min.(1, curGrid .* i)
         imshow(curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
     end
 
     withfig(fig) do
         myanim = anim.FuncAnimation(fig, make_frame, frames=nframes, interval=20)
-        myanim[:save]("test2.mp4", bitrate=-1, extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p"])
+        myanim[:save]("test3" * f_ending, dpi = 100, writer=writer)
     end
-    close(fig)
+    close()
 end
