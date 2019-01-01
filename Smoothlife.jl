@@ -17,8 +17,8 @@ function makeMask(r_out, r_in=0.0, AA=0.0; normalize=true)
                 end
             end
         end
-    end 
-    
+    end
+
     return normalize ? mask/sum(mask) : mask
 end
 
@@ -67,7 +67,7 @@ For further information, see 'makeOuterMask'.
 """
 function makeOuterMasksubtracted(r_out, r_in, AA=0.0; verbose=false)::Array{Float64,2}
     mask = makeMask(r_out, 0.0, AA; normalize=false)
-    
+
     # make the hole of the ring
     #mask_sub = zeros(Float64, 2*r_out+1, 2*r_out+1)
     mask_in = makeMask(r_in, 0.0, AA, normalize=false)
@@ -76,10 +76,10 @@ function makeOuterMasksubtracted(r_out, r_in, AA=0.0; verbose=false)::Array{Floa
     println(size(mask[r_out-r_in+1:r_out+r_in+1, r_out-r_in+1:r_out+r_in+1]))
     flush(stdout)
     mask[r_out-r_in+1:r_out+r_in+1,r_out-r_in+1:r_out+r_in+1] -= mask_in
-    
+
     #normalize mask, so that sum(mask) == 1.0
     mask /= sum(mask)
-    
+
     if verbose; plt[:figure](); plt[:axis]("off"); plt[:imshow](mask) end
     return mask
 end
@@ -87,7 +87,7 @@ end
 """
 Initiate grid with a splats. Can be squared or round
 # Arguments
-* `grid`: 
+* `grid`:
 * `height`: grid height
 * `width`: grid width
 * `r_out`: outer radius of conv mask
@@ -108,13 +108,13 @@ function splat!(grid::Array{Float64,2}, height, width, r_out; round=true)
             end
         end
     end
-    
+
     return grid
 end
 
 """
 Return a grid initiated with splats.
-    
+
 # Arguments
 * `height`: grid height
 * `width`: grid width
@@ -131,7 +131,7 @@ end
 #=
 #Hack: in the paper, λ is different for n and m! The smoothness allows us to use smaller masks for similar precision
 function σ1(x::Float64, a::Float64)
-    return 1.0 ./ (1.0 + exp(-4.0.*(x-a))) 
+    return 1.0 ./ (1.0 + exp(-4.0.*(x-a)))
 end
 
 function σ2(x::Float64, a::Float64, b::Float64)
@@ -160,6 +160,7 @@ function s(n::Float64, m::Float64)
     d2 = 0.445
     return σ2(n, σm(b1,d1,m), σm(b2,d2,m))
 end
+=#
 
 """
 smoothed integral step into the next generation.
@@ -172,9 +173,9 @@ smoothed integral step into the next generation.
 * `dt::Float64`: distance in time
 """
 function smoothStep(f::Float64, n::Float64, m::Float64, dt::Float64)
-    #return f + dt*(2*s(n,m)-1)
     return f + dt*(2*snm(n,m)-1)
 end
+
 
 function smoothStep(f::Float64, n::Float64, m::Float64)
     return s(n,m)*f
@@ -200,7 +201,6 @@ function snm(n, m)
     alpham = 0.147
     return sigmoid_ab(n, sigmoid_mix(b1, d1, m, alpham), sigmoid_mix(b2, d2, m, alpham), alphan, alphan)
 end
-=#
 
 function sigma1(x::Float64, a::Float64, alpha::Float64)::Float64
     return 1.0 / ( 1.0 + exp(-(x-a)*4.0/alpha));
