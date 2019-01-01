@@ -310,14 +310,13 @@ function simulate(
         newGrid = zeros(Float64, grid_width, grid_height) # just for debugging.
         for x in 1:grid_width
             for y in 1:grid_height
-                newGrid[x,y] = smoothStep(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)
-                #newGrid[x,y] = max(0.0, min(1.0, next_step_as_euler(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)))
+                #newGrid[x,y] = smoothStep(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)
+                newGrid[x,y] = max(0.0, min(1.0, next_step_as_euler(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)))
             end
         end
 
         # swap
         curGrid = newGrid
-        #newGrid = zeros(Float64, grid_width, grid_height) 
 
         if showOnConsole
             im[:set_data](curGrid)
