@@ -20,6 +20,9 @@ _If someone has a workaround, let me know!_
 - [x] Julia version 1.0.x
 - [x] working graphics output
 - [x] FFT convolution
+- [x] animations as mp4
+- [x] animations as gif
+- [ ] iterate parameter space
 - [ ] stable universe
 - [ ] test cases
 - [ ] code clean-up
