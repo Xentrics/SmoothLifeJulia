@@ -223,10 +223,18 @@ end
 Return the new filling based of the area of the `outer` and the `inner` ring.
 """
 function discrete_step(outer::Float64, inner::Float64)::Float64
-    b1 = 0.278
-    b2 = 0.365
-    d1 = 0.267
-    d2 = 0.445
+    # Static Rule Set 1
+    # Tested with euler stepping
+    # Result: results in static, non moving pattern for dt < 0.35
+    # Result: for dt = 0.5, incremental filling can be observed
+    #b1 = 0.278
+    #b2 = 0.365
+    #d1 = 0.267
+    #d2 = 0.445
+    b1 = 0.257
+    b2 = 0.336
+    d1 = 0.365
+    d2 = 0.549
 
     return sigmam(sigma2(outer,b1,b2), sigma2(outer,d1,d2),inner);
 end
