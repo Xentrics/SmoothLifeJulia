@@ -331,4 +331,4 @@ function simulate(
 end
 
 
-res = simulate(runs=50);
+res = simulate(runs=50, r_in = 8, r_out = 20, dt = 0.05);
