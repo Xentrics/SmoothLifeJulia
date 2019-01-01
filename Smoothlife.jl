@@ -1,6 +1,8 @@
 
-using Images, Plots, PyPlot, PyCall
+using Images, PyPlot, PyCall, IJulia
+# using Plots
 @pyimport matplotlib.cm as cm
+@pyimport matplotlib.animation as anim
 
 function makeMask(r_out, r_in=0.0, AA=0.0; normalize=true)
     @assert(AA>=0.0, "Antialiasing border size cannot be negative!")
