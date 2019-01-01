@@ -1,5 +1,5 @@
 
-using Images, PyPlot, PyCall
+using Images, Plots, PyPlot, PyCall
 @pyimport matplotlib.cm as cm
 
 function makeMask(r_out, r_in=0.0, AA=0.0; normalize=true)
