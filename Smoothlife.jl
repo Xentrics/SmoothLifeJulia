@@ -334,3 +334,70 @@ end
 
 
 res = simulate(runs=50, r_in = 8, r_out = 20, dt = 0.05);
+
+
+
+
+"""
+Julia animate version
+"""
+function test_anim(curGrid)
+    # define correct backend for plotting
+    pyplot()
+    # create animation object that can be saved as mp4 or displayed as gif
+    anim = @animate for i=1:20
+        #plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+        Plots.plot(rand(5,5),linewidth=2,title="My Plot")
+    end
+
+    gif(anim, "test_anim.rand.gif", fps = 3)
+
+    anim = @animate for i=1:20
+        #plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+        Plots.plot(curGrid, linewidth=2, title="My Plot")
+    end
+
+    gif(anim, "test_anim.curGrid.gif", fps = 3)
+    return(anim);
+end
+
+
+
+function test_anim2(curGrid)
+    function init()
+    end
+
+    function animate(i)
+        im[:set_data](curGrid)
+        plt[:draw]()
+    end
+
+    # create base figure
+    fig = figure("MyFigure", figsize=(512, 512))
+
+    myanim = anim.FuncAnimation(im, animate, init_func = init, frames = 100, interval=20)
+    return(myanim)
+end
+
+
+
+function test_anim3(curGrid, nframes = 200)
+    function showanim(filename)
+        base64_video = base64encode(open(filename))
+        display("text/html", """<video controls src="data:video/x-m4v;base64,$base64_video">""")
+    end
+
+    fig = figure(figsize=(4,4))
+    axis("off")
+
+    function make_frame(i)
+        curGrid = min.(1, curGrid .* i)
+        imshow(curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+    end
+
+    withfig(fig) do
+        myanim = anim.FuncAnimation(fig, make_frame, frames=nframes, interval=20)
+        myanim[:save]("test2.mp4", bitrate=-1, extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p"])
+    end
+    close(fig)
+end
