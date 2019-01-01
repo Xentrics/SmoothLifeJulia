@@ -282,7 +282,7 @@ function simulate(
         start_grid = nothing,
         grid_width = 512,
         grid_height = 512,
-        r_in = 9,
+        r_in = 7,
         r_out = 3*r_in,
         dt = 0.05,
         sleepTime=0.1,
@@ -303,10 +303,9 @@ function simulate(
 
     for run in 1:runs
         # convolution -> get fillings
-        #imfilter_fft
         convInner = imfilter(curGrid, mask_in, "circular")  # HACK: fft is faster for masks greater 20x20
         convOuter = imfilter(curGrid, mask_out, "circular")
-        
+
         # calc new frame
         newGrid = zeros(Float64, grid_width, grid_height) # just for debugging.
         for x in 1:grid_width
