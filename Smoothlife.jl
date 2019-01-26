@@ -1,8 +1,9 @@
 
-using Images, PyPlot, PyCall, IJulia
+using Images, IJulia, Plots
+#using PyPlot, PyCall,
 # using Plots
-@pyimport matplotlib.cm as cm
-@pyimport matplotlib.animation as anim
+#@pyimport matplotlib.cm as cm
+#@pyimport matplotlib.animation as anim
 
 function makeMask(r_out, r_in=0.0, AA=0.0; normalize=true)
     @assert(AA>=0.0, "Antialiasing border size cannot be negative!")
@@ -288,20 +289,27 @@ function simulate(
         r_out = 3*r_in,
         dt = 0.05,
         sleepTime=0.1,
+        save_all_steps = true,
         showOnConsole=true,
         verbose=false
-    )::Array{Float64,2}
+    )::Dict{}
 
     if start_grid == nothing
         (curGrid, newGrid) = createGrid(grid_width, grid_height; r_out=r_out)
     else
         (curGrid, newGrid) = (start_grid, zeros(Float64, grid_width, grid_height))
     end
+
+    if save_all_steps == true
+        # prepare full array for storage
+        all_steps = Array{Float64}(undef, grid_width, grid_height, runs)
+    end
+
     mask_in = makeInnerMask(r_in, 1.0; verbose=verbose)
     mask_out = makeOuterMask(r_out, r_in, 1.0; subtract=true, verbose=verbose)
 
-    plt[:axis]("off")
-    im = plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+    #plt[:axis]("off")
+    #im = plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
 
     for run in 1:runs
         # convolution -> get fillings
@@ -320,22 +328,108 @@ function simulate(
         # swap
         curGrid = newGrid
 
+        if save_all_steps
+            all_steps[:,:,run] = curGrid
+        end
+
         if showOnConsole
-            im[:set_data](curGrid)
-            plt[:draw]()
+            #im[:set_data](curGrid)
+            #plt[:draw]()
             sleep(sleepTime)
         else
-            plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+            #plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
         end
     end
 
-    return curGrid;
+    return Dict("last" => curGrid, "all" => all_steps);
 end
 
 
-res = simulate(runs=50, r_in = 8, r_out = 20, dt = 0.05);
+res = simulate(runs=100, r_in = 8, r_out = 20, dt = 0.05);
+
+test = Array{Float64}(undef,512,512,100)
+dim = size(test)
+nruns = dim[3]
+width = dim[1]
+height = dim[2]
+
+# this looks like I want it!
+#pyplot()
+gr() # FASTER!
+heatmap(res["all"][:,:,i])
+
+# more colorful version, but may need a gradient to control the fill scale
+grad = ColorGradient(:grays)
+# THIS THIS THIS
+# grad = ColorGradient(RGBA{Float64}[RGBA{Float64}(0.05,0.05,0.05,1.0), RGBA{Float64}(0.95,0.95,0.95,1.0)], [0.0, 1.0])
+heatmap(res["all"][:,:,25],
+    c = grad, # seems to be the same as :grays, tbh.
+    legend = nothing,
+    xticks = nothing,
+    yticks = nothing,
+    aspect_ratio = 1.0)
 
 
+@animate for i in 1:nruns
+    plot(res["all"][:,:,i]) #, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+end
+
+
+
+function save_runs_as_video(all_steps, file_name, save_type = "mp4")
+    function showanim(filename)
+        base64_video = base64encode(open(filename))
+        display("text/html", """<video controls src="data:video/x-m4v;base64,$base64_video">""")
+    end
+
+    # set up writer for movie / image files
+    if save_type == "mp4"
+        f_ending = ".mp4"
+        #writer = anim.FFMpegWriter(fps=15, extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p"])
+        writer = anim.FFMpegWriter(fps=20)
+    elseif save_type == "gif"
+        f_ending = ".gif"
+        #writer = "imagemagick"
+        writer = anim.ImageMagickWriter()
+    else
+        throw(error("Wrong save type!"))
+    end
+
+
+
+    fig = figure(figsize=(4,4))
+    axis("off")
+
+    function make_frame(i)
+        #curGrid = min.(1, curGrid .* i)
+        #imshow(all_steps[:,:,i], cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+        PyPlot.spy(all_steps[:,:,i], cmap=cm.Greys_r, vmin=0.0, vmax=1.0);
+    end
+
+    withfig(fig) do
+        nsteps = size(all_steps)[3]
+        myanim = anim.FuncAnimation(fig, make_frame, frames = nsteps, interval=20)
+        myanim[:save](file_name * f_ending, dpi = 100, writer=writer)
+    end
+    close()
+end
+
+save_runs_as_video(res["all"], "all_steps_test", "gif")
+
+
+
+
+
+function test_anim4()
+    anim = @animate for i in 1:150
+        plot(1:i, 1:i, color_palette = :grays)
+    end
+
+    gif(anim, "line_anim.gif", fps = 15)
+    gif(anim, "line_anim.mp4", fps = 15)
+    mp4(anim, "line_anim_.mp4", fps = 15)
+    gif(anim, "line_anim.mov", fps = 15)
+end
 
 
 """
@@ -381,6 +475,7 @@ end
 
 
 
+# Does not seem to work for the real deal
 function test_anim3(curGrid; nframes = 20, save_type = "mp4")
     function showanim(filename)
         base64_video = base64encode(open(filename))
