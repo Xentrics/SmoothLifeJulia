@@ -347,11 +347,6 @@ end
 
 res = simulate(runs=100, r_in = 8, r_out = 20, dt = 0.05);
 
-test = Array{Float64}(undef,512,512,100)
-dim = size(test)
-nruns = dim[3]
-width = dim[1]
-height = dim[2]
 
 # this looks like I want it!
 #pyplot()
@@ -370,51 +365,31 @@ heatmap(res["all"][:,:,25],
     aspect_ratio = 1.0)
 
 
-@animate for i in 1:nruns
-    plot(res["all"][:,:,i]) #, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
+
+function save_runs_as_video(all_steps, file_name, save_type = ".mp4")
+    if !(save_type in (".gif", ".mp4", ".mov"))
+        throw(ArgumentError("Invalid save type! Please use either '.gif', '.mp4' or '.mov'!"))
+    end
+
+    dim = size(res["all"])
+    nruns = dim[3]
+    width = dim[1]
+    height = dim[2]
+    anim = @animate for i in 1:nruns
+        heatmap(res["all"][:,:,i],
+            c = grad, # seems to be the same as :grays, tbh.
+            legend = nothing,
+            xticks = nothing,
+            yticks = nothing,
+            aspect_ratio = 1.0)
+    end
+
+    # this function will also produce other file types based on the file ending!
+    gif(anim, file_name * save_type, fps = 15);
+    return anim;
 end
 
-
-
-function save_runs_as_video(all_steps, file_name, save_type = "mp4")
-    function showanim(filename)
-        base64_video = base64encode(open(filename))
-        display("text/html", """<video controls src="data:video/x-m4v;base64,$base64_video">""")
-    end
-
-    # set up writer for movie / image files
-    if save_type == "mp4"
-        f_ending = ".mp4"
-        #writer = anim.FFMpegWriter(fps=15, extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p"])
-        writer = anim.FFMpegWriter(fps=20)
-    elseif save_type == "gif"
-        f_ending = ".gif"
-        #writer = "imagemagick"
-        writer = anim.ImageMagickWriter()
-    else
-        throw(error("Wrong save type!"))
-    end
-
-
-
-    fig = figure(figsize=(4,4))
-    axis("off")
-
-    function make_frame(i)
-        #curGrid = min.(1, curGrid .* i)
-        #imshow(all_steps[:,:,i], cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
-        PyPlot.spy(all_steps[:,:,i], cmap=cm.Greys_r, vmin=0.0, vmax=1.0);
-    end
-
-    withfig(fig) do
-        nsteps = size(all_steps)[3]
-        myanim = anim.FuncAnimation(fig, make_frame, frames = nsteps, interval=20)
-        myanim[:save](file_name * f_ending, dpi = 100, writer=writer)
-    end
-    close()
-end
-
-save_runs_as_video(res["all"], "all_steps_test", "gif")
+save_runs_as_video(res["all"], "all_steps_test", ".mp4")
 
 
 
