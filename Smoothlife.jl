@@ -1,5 +1,6 @@
-
 using Images, IJulia, Plots
+gr() # FASTER!
+
 #using PyPlot, PyCall,
 # using Plots
 #@pyimport matplotlib.cm as cm
@@ -305,6 +306,10 @@ function simulate(
         all_steps = Array{Float64}(undef, grid_width, grid_height, runs)
     end
 
+    # prevent Atom from capturing the plot
+    # that will not work!
+    #ENV["PLOTS_USE_ATOM_PLOTPANE"] = "false"
+
     mask_in = makeInnerMask(r_in, 1.0; verbose=verbose)
     mask_out = makeOuterMask(r_out, r_in, 1.0; subtract=true, verbose=verbose)
 
@@ -332,38 +337,34 @@ function simulate(
             all_steps[:,:,run] = curGrid
         end
 
-        if showOnConsole
-            #im[:set_data](curGrid)
-            #plt[:draw]()
-            sleep(sleepTime)
-        else
-            #plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
-        end
+        # more colorful version, but may need a gradient to control the fill scale
+        grad = ColorGradient(:grays)
+        # grad = ColorGradient(RGBA{Float64}[RGBA{Float64}(0.05,0.05,0.05,1.0), RGBA{Float64}(0.95,0.95,0.95,1.0)], [0.0, 1.0])
+        heatmap(curGrid,
+            c = grad, # seems to be the same as :grays, tbh.
+            legend = nothing,
+            xticks = nothing,
+            yticks = nothing,
+            aspect_ratio = 1.0)
+        gui()
+        sleep(sleepTime)
     end
 
     return Dict("last" => curGrid, "all" => all_steps);
 end
 
 
-res = simulate(runs=100, r_in = 8, r_out = 20, dt = 0.05);
+res = simulate(runs=100, r_in = 8, r_out = 20, dt = 0.05, sleepTime = 0);
 
 
-# this looks like I want it!
-#pyplot()
-gr() # FASTER!
-heatmap(res["all"][:,:,i])
-
-# more colorful version, but may need a gradient to control the fill scale
 grad = ColorGradient(:grays)
-# THIS THIS THIS
 # grad = ColorGradient(RGBA{Float64}[RGBA{Float64}(0.05,0.05,0.05,1.0), RGBA{Float64}(0.95,0.95,0.95,1.0)], [0.0, 1.0])
-heatmap(res["all"][:,:,25],
+heatmap(res["last"],
     c = grad, # seems to be the same as :grays, tbh.
     legend = nothing,
     xticks = nothing,
     yticks = nothing,
     aspect_ratio = 1.0)
-
 
 
 function save_runs_as_video(all_steps, file_name, save_type = ".mp4")
