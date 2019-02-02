@@ -132,79 +132,6 @@ function initGrid(height, width, r_out)::Array{Float64,2}
     return grid
 end
 
-#=
-#Hack: in the paper, λ is different for n and m! The smoothness allows us to use smaller masks for similar precision
-function σ1(x::Float64, a::Float64)
-    return 1.0 ./ (1.0 + exp(-4.0.*(x-a)))
-end
-
-function σ2(x::Float64, a::Float64, b::Float64)
-    return σ1(x,a).*(1.0 - σ1(x,b))
-end
-
-function σm(x::Float64, y::Float64, m::Float64)
-    return x.*(1.0 - σ1(m, 0.5)) + y.*σ1(m, 0.5)
-end
-
-"""
-Evaluate inner and outer filling of a cell. The used formulars and constants were proposed for smooth, stable gliders.
-These can be found in the original smoothlife paper from 2011.
-
-The function is a mapping of [0,1) x [0,1) ⟶ [0,1).
-
-#Arguments
-* `n::Float64`: outer filling ∈ [0,1]
-* `m::Float64`: inner filling ∈ [0,1]
-"""
-function s(n::Float64, m::Float64)
-    #Note: birth interval [b1,b2] and death interval [d1, d2]. Values based on original paper
-    b1 = 0.278
-    b2 = 0.365
-    d1 = 0.267
-    d2 = 0.445
-    return σ2(n, σm(b1,d1,m), σm(b2,d2,m))
-end
-=#
-
-"""
-smoothed integral step into the next generation.
-    f(x, t + dt) = f(x) + dt * (2*s(n,m)-1) * f(x)
-
-#Arguments
-* `f::Float64`: value of the current cell (x,y) with f = f(x,y), n = mask_outer(x,y) , m = mask_inner(x,y)
-* `n::Float64`: outer filling ∈ [0,1)
-* `m::Float64`: inner filling ∈ [0,1)
-* `dt::Float64`: distance in time
-"""
-function smoothStep(f::Float64, n::Float64, m::Float64, dt::Float64)
-    return f + dt*(2*snm(n,m)-1)
-end
-
-
-function smoothStep(f::Float64, n::Float64, m::Float64)
-    return s(n,m)*f
-end
-
-# alternative solution
-sigmoid_a(x, a, b) =  1 ./(1+exp(-4(x-a)/b))
-
-sigmoid_b(x, b, eb) = 1 - sigmoid_a(x, b, eb)
-
-sigmoid_ab(x, a, b, ea, eb) = sigmoid_a(x, a, ea) .* sigmoid_b(x, b, eb)
-
-function sigmoid_mix(x, y, m, em)
-    return x.*(1-sigmoid_a(m, 0.5, em)) + y.*sigmoid_a(m, 0.5, em)
-end
-
-function snm(n, m)
-    b1 = 0.278
-    b2 = 0.365
-    d1 = 0.267
-    d2 = 0.445
-    alphan = 0.028
-    alpham = 0.147
-    return sigmoid_ab(n, sigmoid_mix(b1, d1, m, alpham), sigmoid_mix(b2, d2, m, alpham), alphan, alphan)
-end
 
 function sigma1(x::Float64, a::Float64, alpha::Float64)::Float64
     return 1.0 / ( 1.0 + exp(-(x-a)*4.0/alpha));
@@ -248,7 +175,7 @@ function discrete_as_euler(outer::Float64, inner::Float64)::Float64
 end
 
 function next_step_as_euler(f::Float64, outer::Float64, inner::Float64, dt::Float64)::Float64
-    return f + dt * discrete_as_euler(outer,inner);
+    return max(0.0, min(1.0, f + dt * discrete_as_euler(outer,inner)));
 end
 
 """
@@ -326,7 +253,7 @@ function simulate(
         for x in 1:grid_width
             for y in 1:grid_height
                 #newGrid[x,y] = smoothStep(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)
-                newGrid[x,y] = max(0.0, min(1.0, next_step_as_euler(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)))
+                newGrid[x,y] = next_step_as_euler(curGrid[x,y], convOuter[x,y], convInner[x,y], dt)
             end
         end
 
@@ -354,19 +281,6 @@ function simulate(
 end
 
 
-res = simulate(runs=100, r_in = 8, r_out = 20, dt = 0.05, sleepTime = 0);
-
-
-grad = ColorGradient(:grays)
-# grad = ColorGradient(RGBA{Float64}[RGBA{Float64}(0.05,0.05,0.05,1.0), RGBA{Float64}(0.95,0.95,0.95,1.0)], [0.0, 1.0])
-heatmap(res["last"],
-    c = grad, # seems to be the same as :grays, tbh.
-    legend = nothing,
-    xticks = nothing,
-    yticks = nothing,
-    aspect_ratio = 1.0)
-
-
 function save_runs_as_video(all_steps, file_name, save_type = ".mp4")
     if !(save_type in (".gif", ".mp4", ".mov"))
         throw(ArgumentError("Invalid save type! Please use either '.gif', '.mp4' or '.mov'!"))
@@ -388,102 +302,4 @@ function save_runs_as_video(all_steps, file_name, save_type = ".mp4")
     # this function will also produce other file types based on the file ending!
     gif(anim, file_name * save_type, fps = 15);
     return anim;
-end
-
-save_runs_as_video(res["all"], "all_steps_test", ".mp4")
-
-
-
-
-
-function test_anim4()
-    anim = @animate for i in 1:150
-        plot(1:i, 1:i, color_palette = :grays)
-    end
-
-    gif(anim, "line_anim.gif", fps = 15)
-    gif(anim, "line_anim.mp4", fps = 15)
-    mp4(anim, "line_anim_.mp4", fps = 15)
-    gif(anim, "line_anim.mov", fps = 15)
-end
-
-
-"""
-Julia animate version
-"""
-function test_anim(curGrid)
-    # define correct backend for plotting
-    pyplot()
-    # create animation object that can be saved as mp4 or displayed as gif
-    anim = @animate for i=1:20
-        #plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
-        Plots.plot(rand(5,5),linewidth=2,title="My Plot")
-    end
-
-    gif(anim, "test_anim.rand.gif", fps = 3)
-
-    anim = @animate for i=1:20
-        #plt[:figure](); plt[:axis]("off"); plt[:imshow](curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
-        Plots.plot(curGrid, linewidth=2, title="My Plot")
-    end
-
-    gif(anim, "test_anim.curGrid.gif", fps = 3)
-    return(anim);
-end
-
-
-
-function test_anim2(curGrid)
-    function init()
-    end
-
-    function animate(i)
-        im[:set_data](curGrid)
-        plt[:draw]()
-    end
-
-    # create base figure
-    fig = figure("MyFigure", figsize=(512, 512))
-
-    myanim = anim.FuncAnimation(im, animate, init_func = init, frames = 100, interval=20)
-    return(myanim)
-end
-
-
-
-# Does not seem to work for the real deal
-function test_anim3(curGrid; nframes = 20, save_type = "mp4")
-    function showanim(filename)
-        base64_video = base64encode(open(filename))
-        display("text/html", """<video controls src="data:video/x-m4v;base64,$base64_video">""")
-    end
-
-    # set up writer for movie / image files
-    if save_type == "mp4"
-        f_ending = ".mp4"
-        #writer = anim.FFMpegWriter(fps=15, extra_args=["-vcodec", "libx264", "-pix_fmt", "yuv420p"])
-        writer = anim.FFMpegWriter(fps=15)
-    elseif save_type == "gif"
-        f_ending = ".gif"
-        #writer = "imagemagick"
-        writer = anim.ImageMagickWriter()
-    else
-        throw(error("Wrong save type!"))
-    end
-
-
-
-    fig = figure(figsize=(4,4))
-    axis("off")
-
-    function make_frame(i)
-        #curGrid = min.(1, curGrid .* i)
-        imshow(curGrid, cmap=cm.Greys_r, vmin = 0.0, vmax = 1.0)
-    end
-
-    withfig(fig) do
-        myanim = anim.FuncAnimation(fig, make_frame, frames=nframes, interval=20)
-        myanim[:save]("test3" * f_ending, dpi = 100, writer=writer)
-    end
-    close()
 end
