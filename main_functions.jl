@@ -89,22 +89,45 @@ function makeOuterMasksubtracted(r_out, r_in, AA=0.0; verbose=false)::Array{Floa
 end
 
 """
-Initiate grid with a splats. Can be squared or round
+Add a splat to the given grid. Can be a square or circle.
+Note: In a stable world, splats should become rings.
+
 # Arguments
 * `grid`:
 * `height`: grid height
 * `width`: grid width
 * `r_out`: outer radius of conv mask
+* `at`   : position as 2D array. If 'nothing', a random position is chosen instead.
+* `val`  : Value of splat. Must be within [0,1]
 * `round`: if true, make round splats. Make squares otherwise
 """
-function splat!(grid::Array{Float64,2}, height, width, r_out; round=true)
-	x = floor(Int64, rand()*width)+1
-	y = floor(Int64, rand()*height)+1
-	c = max(0.5, rand()) # val ∈ [0.5, 1.0]
+function splat!(grid::Array{Float64,2}, r_out, at = nothing, val = nothing; round=true)
+    width = size(grid)[1]
+    height = size(grid)[2]
+
+    if at == nothing
+        x = floor(Int64, rand()*width)+1
+        y = floor(Int64, rand()*height)+1
+    else
+        if (x < 0 || x > width || y < 0 || y > height)
+            throw(ArgumentError("Given position is outside of the grid boundaries!"))
+        end
+        x = at[1]
+        y = at[2]
+    end
+
+    if val == nothing
+        c = max(0.5, rand()) # val ∈ [0.5, 1.0]
+    else
+        if (val < 0 | val > 1)
+            throw(ArgumentError("val must be within [0,1]!"))
+        end
+        c = val
+    end
 
     for dx in -r_out:r_out
         for dy in -r_out:r_out
-            # make a splat around [ix, iy]
+            # make a splat around [x, y]
             ix = x+dx
             iy = y+dy
             if 1<=ix<=width && 1<=iy<=height && (!round || round && sqrt(dx^2+dy^2) <= r_out)
@@ -115,6 +138,7 @@ function splat!(grid::Array{Float64,2}, height, width, r_out; round=true)
 
     return grid
 end
+
 
 """
 Return a grid initiated with splats.
@@ -127,7 +151,7 @@ Return a grid initiated with splats.
 function initGrid(height, width, r_out)::Array{Float64,2}
 	grid = zeros(Float64, height,width)
 	for t in 0:((width/r_out)*(height/r_out))
-		splat!(grid, height, width, r_out)
+		splat!(grid, r_out)
 	end
     return grid
 end
